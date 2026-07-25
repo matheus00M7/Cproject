@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Pêndulo de 10 hastes</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#050912;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none}
+.title{position:fixed;top:max(10px,env(safe-area-inset-top));left:12px;padding:9px 12px;border-radius:13px;background:rgba(10,16,30,.78);font-weight:800}
+.panel{position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));padding:12px;border-radius:18px;background:rgba(13,20,36,.92);border:1px solid rgba(255,255,255,.13);backdrop-filter:blur(14px)}
+.row{display:grid;grid-template-columns:85px 1fr 58px;gap:8px;align-items:center;margin:7px 0;font-size:13px}
+input{width:100%}.buttons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+button{min-height:44px;border:0;border-radius:12px;background:#2c63c5;color:#fff;font-weight:800}.hint{margin-top:8px;text-align:center;font-size:11px;color:#b9c4da}
+</style>
+</head>
+<body>
+<div class="title">Pêndulo de 10 hastes</div><canvas id="c"></canvas>
+<div class="panel">
+<div class="row"><span>Gravidade</span><input id="g" type="range" min="0" max="25" step=".5" value="9.8"><b id="gv">9,8</b></div>
+<div class="row"><span>Atrito</span><input id="d" type="range" min=".990" max="1" step=".0005" value=".9985"><b id="dv">0,9985</b></div>
+<div class="row"><span>Velocidade</span><input id="s" type="range" min=".25" max="2" step=".05" value="1"><b id="sv">1,00×</b></div>
+<div class="buttons"><button id="pause">Pausar</button><button id="kick">Impulso</button><button id="reset">Reiniciar</button></div>
+<div class="hint">Cada barra colorida é uma haste rígida. Arraste uma junta para mudar o movimento.</div></div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d'),g=document.getElementById('g'),d=document.getElementById('d'),s=document.getElementById('s'),gv=document.getElementById('gv'),dv=document.getElementById('dv'),sv=document.getElementById('sv');
+const N=10,fixed=1/120;let W,H,DPR,A={x:0,y:0},P=[],L=30,run=true,drag=-1,last=performance.now(),acc=0,trail=[];
+function f(v,n){return Number(v).toFixed(n).replace('.',',')}function labels(){gv.textContent=f(g.value,1);dv.textContent=f(d.value,4);sv.textContent=f(s.value,2)+'×'}[g,d,s].forEach(el=>el.oninput=labels);labels();
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*DPR;c.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);A={x:W/2,y:Math.max(95,H*.13)};L=Math.max(22,Math.min(W*.073,H*.055));reset()}
+function reset(){P=[];trail=[];let base=-1.38;for(let i=0;i<N;i++){let prev=i?P[i-1]:A,ang=base+i*.05,x=prev.x+Math.sin(ang)*L,y=prev.y+Math.cos(ang)*L;P.push({x,y,px:x,py:y,m:1+i*.07})}}
+function physics(){let grav=+g.value*62,damp=+d.value;for(let i=0;i<N;i++){if(i===drag)continue;let p=P[i],vx=(p.x-p.px)*damp,vy=(p.y-p.py)*damp;p.px=p.x;p.py=p.y;p.x+=vx;p.y+=vy+grav*fixed*fixed}for(let k=0;k<22;k++){for(let i=0;i<N;i++){let a=i?P[i-1]:A,b=P[i],dx=b.x-a.x,dy=b.y-a.y,dist=Math.hypot(dx,dy)||.001,e=(dist-L)/dist,cx=dx*e,cy=dy*e;if(i===0){if(drag!==0){b.x-=cx;b.y-=cy}}else{let ad=drag===i-1,bd=drag===i;if(!ad&&!bd){a.x+=cx*.5;a.y+=cy*.5;b.x-=cx*.5;b.y-=cy*.5}else if(ad&&!bd){b.x-=cx;b.y-=cy}else if(!ad&&bd){a.x+=cx;a.y+=cy}}}}let end=P[N-1];trail.push({x:end.x,y:end.y});if(trail.length>300)trail.shift()}
+function drawRod(a,b,i){const hue=200+i*15;ctx.lineCap='round';ctx.strokeStyle='rgba(0,0,0,.55)';ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.strokeStyle=`hsl(${hue} 90% 62%)`;ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='bold 10px -apple-system';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(i+1),mx,my)}
+function drawJoint(p,i){ctx.beginPath();ctx.arc(p.x,p.y,9,0,Math.PI*2);ctx.fillStyle='#060a13';ctx.fill();ctx.lineWidth=3;ctx.strokeStyle=`hsl(${200+i*15} 90% 67%)`;ctx.stroke();ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill()}
+function draw(){ctx.fillStyle='#050912';ctx.fillRect(0,0,W,H);let glow=ctx.createRadialGradient(A.x,A.y,0,A.x,A.y,Math.max(W,H)*.75);glow.addColorStop(0,'rgba(34,74,140,.25)');glow.addColorStop(1,'rgba(5,9,18,0)');ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);if(trail.length>1){ctx.beginPath();ctx.moveTo(trail[0].x,trail[0].y);for(let q of trail)ctx.lineTo(q.x,q.y);ctx.strokeStyle='rgba(99,172,255,.32)';ctx.lineWidth=2;ctx.stroke()}for(let i=0;i<N;i++){const a=i?P[i-1]:A;drawRod(a,P[i],i)}ctx.beginPath();ctx.arc(A.x,A.y,11,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.beginPath();ctx.arc(A.x,A.y,5,0,Math.PI*2);ctx.fillStyle='#121a2c';ctx.fill();P.forEach(drawJoint)}
+function loop(t){let elapsed=Math.min((t-last)/1000,.04);last=t;if(run){acc+=elapsed*(+s.value);let guard=0;while(acc>=fixed&&guard++<12){physics();acc-=fixed}}draw();requestAnimationFrame(loop)}
+function point(e){return{x:e.clientX,y:e.clientY}}c.onpointerdown=e=>{let q=point(e),best=38;drag=-1;P.forEach((p,i)=>{let dist=Math.hypot(q.x-p.x,q.y-p.y);if(dist<best){best=dist;drag=i}});if(drag>=0){c.setPointerCapture(e.pointerId);P[drag].x=P[drag].px=q.x;P[drag].y=P[drag].py=q.y}};c.onpointermove=e=>{if(drag<0)return;let q=point(e),p=P[drag];p.x=p.px=q.x;p.y=p.py=q.y};c.onpointerup=c.onpointercancel=()=>drag=-1;
+document.getElementById('pause').onclick=e=>{run=!run;e.target.textContent=run?'Pausar':'Continuar'};document.getElementById('kick').onclick=()=>{P[N-1].px-=8;P[Math.floor(N/2)].py+=4};document.getElementById('reset').onclick=reset;addEventListener('resize',resize);resize();requestAnimationFrame(loop);
+</script></body></html>
